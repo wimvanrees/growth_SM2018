@@ -107,17 +107,21 @@ add_library(hlbfgs SHARED ${SOURCES_HLBFGS})
 target_link_libraries(libshell hlbfgs)
 target_link_libraries(shell hlbfgs)
 
-# TRIANGLE (create library -- sources are dowloaded from LIBIGL)
-set(TRIANGLE_SOURCE_DIR "${LIBIGL_SOURCE_DIR}/external/triangle/")
-include_directories(${TRIANGLE_SOURCE_DIR})	
+# TRIANGLE (download directly from LIBIGL and create library)
+download_project(PROJ		TRIANGLE
+		GIT_REPOSITORY https://github.com/libigl/triangle
+		GIT_TAG        d284c4a843efac043c310f5fa640b17cf7d96170
+                 ${UPDATE_DISCONNECTED_IF_AVAILABLE}
+)
+include_directories(${TRIANGLE_SOURCE_DIR})
+message("Included Triangle in: ${TRIANGLE_SOURCE_DIR}")	
 set(CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} -DUSETRILIBRARY")
 add_library(triangle SHARED "${TRIANGLE_SOURCE_DIR}/triangle.c")
 target_compile_definitions(triangle PRIVATE -DTRILIBRARY)# -DNO_TIMER)
 target_link_libraries(shell triangle)
 target_link_libraries(libshell triangle)
-message("Included Triangle in: ${TRIANGLE_SOURCE_DIR}")
 
-# VTK (OPTIONAL)
+# VTK (OPTIONAL BUT STRONGLY RECOMMENDED FOR IO)
 find_package(VTK)
 if(VTK_FOUND)
     message("Found vtk in: ${VTK_INCLUDE_DIRS}")
