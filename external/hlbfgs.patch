@@ -1,0 +1,660 @@
+diff -x '.*' -Naru ../HLBFGS_ORG/HLBFGS.cpp ./HLBFGS.cpp
+--- ../HLBFGS_ORG/HLBFGS.cpp	2019-09-23 11:23:08.000000000 -0400
++++ ./HLBFGS.cpp	2019-09-23 11:23:13.000000000 -0400
+@@ -87,7 +87,7 @@
+ }
+ 
+ //////////////////////////////////////////////////////////////////////////
+-void HLBFGS_UPDATE_Hessian(int N, int M, double *q, double *s, double *y,
++void HLBFGS_UPDATE_Hessian(void * /*instance*/, int N, int M, double *q, double *s, double *y,
+ 						   int cur_pos, double *diag, int INFO[])
+ {
+ 	if (M <= 0 || INFO[2] == 0)
+@@ -123,7 +123,7 @@
+ 		double dyy = 0;
+ 		double dinvss = 0;
+ 		int i = 0;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i) reduction(+:dinvss) reduction(+:dyy)
+ #endif
+ 		for (i = 0; i < N; i++)
+@@ -131,7 +131,7 @@
+ 			dinvss += s_start[i] * s_start[i] / diag[i];
+ 			dyy += diag[i] * y_start[i] * y_start[i];
+ 		}
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i)
+ #endif
+ 		for (i = 0; i < N; i++)
+@@ -142,7 +142,7 @@
+ 		}
+ 		if (INFO[12] == 1)
+ 		{
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i)
+ #endif
+ 			for (i = 0; i < N; i++)
+@@ -246,12 +246,12 @@
+ 	}
+ 	//determine new q
+ 
+-	const double minus_one = -1.0;
++//	const double minus_one = -1.0;
+ 	if (cg_beta != 1.0)
+ 		HLBFGS_DSCAL(N, cg_beta, prev_q_update);
+ 
+ 	int i = 0;
+-//#ifdef USE_OPENMP
++//#ifdef HLBFGS_OPENMP
+ //#pragma omp parallel for private(i)
+ //#endif
+ 	for (i = 0; i < N; i++)
+@@ -267,7 +267,7 @@
+ 	else if (cg_lambda < 0)
+ 		cg_lambda = 0;
+ 
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i)
+ #endif
+ 	for (i = 0; i < N; i++)
+@@ -278,18 +278,20 @@
+ }
+ 
+ //////////////////////////////////////////////////////////////////////////
+-void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
+-			double*, double*), void EVALFUNC_H(int, double*, double*, double*,
+-			double*, HESSIAN_MATRIX&), void USER_DEFINED_HLBFGS_UPDATE_H(int, int,
+-			double*, double*, double*, int, double*, int[]), void NEWITERATION(int,
+-			int, double*, double*, double*, double*), double PARAMETERS[],
++int HLBFGS(int N, int M, double *x, void EVALFUNC(void *,int, double*, double*,
++			double*, double*), void EVALFUNC_H(void *,int, double*, double*, double*,
++			double*, HESSIAN_MATRIX&), void USER_DEFINED_HLBFGS_UPDATE_H(void *,int, int,
++			double*, double*, double*, int, double*, int[]), void NEWITERATION(void *,int,
++			int, double*, double*, double*, double*), void * instance, double PARAMETERS[],
+ 			int INFO[])
+ {
++    int retval;
+ 	int T = INFO[6];
+ 	if (N < 1 || M < 0 || T < 0 || INFO[4] < 1)
+ 	{
+ 		HLBFGS_MESSAGE(INFO[5] != 0, 0, PARAMETERS);
+-		return;
++        retval = 0;
++		return retval;
+ 	}
+ 	//allocate mem
+ 	std::vector<double> q_vec(N), g_vec(N), alpha_vec(M <= 0 ? 0 : M), rho_vec(
+@@ -345,7 +347,7 @@
+ 	m_hessian.get_icfs_info().allocate_mem(N);
+ 	char task1 = 'N';
+ 	char task2 = 'T';
+-	double prev_f;
++	double prev_f = 0; // wim added = 0 to suppress compiler warning - does not matter since only used for info[2]>0
+ 	int i;
+ 
+ 	//////////////////////////////////////////////////////////////////////////
+@@ -353,12 +355,12 @@
+ 	{
+ 		if (INFO[7] == 1 && ((T == 0) || (INFO[2] % T == 0)))
+ 		{
+-			EVALFUNC_H(N, x, INFO[2] == 0 ? 0 : prev_x, &f, g, m_hessian);
++			EVALFUNC_H(instance, N, x, INFO[2] == 0 ? 0 : prev_x, &f, g, m_hessian);
+ 			HLBFGS_BUILD_HESSIAN_INFO(m_hessian, INFO);
+ 		}
+ 		else if (INFO[2] == 0)
+ 		{
+-			EVALFUNC(N, x, 0, &f, g);
++			EVALFUNC(instance, N, x, 0, &f, g);
+ 			INFO[1]++;
+ 		}
+ 
+@@ -366,7 +368,7 @@
+ 		{
+ 			//compute s and y
+ 			start = cur_pos * N;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i)
+ #endif
+ 			for (i = 0; i < N; i++)
+@@ -404,7 +406,7 @@
+ 				rho[cur_pos] *= update_alpha;
+ 			}
+ 		}
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i)
+ #endif
+ 		for (i = 0; i < N; i++)
+@@ -431,7 +433,7 @@
+ 			}
+ 			else
+ 			{
+-				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, diag, INFO);
++				USER_DEFINED_HLBFGS_UPDATE_H(instance, N, M, q, s, y, cur_pos, diag, INFO);
+ 			}
+ 		}
+ 		else
+@@ -450,7 +452,7 @@
+ 			else
+ 			{
+ 				INFO[12] = 0;
+-				USER_DEFINED_HLBFGS_UPDATE_H(N, M, q, s, y, cur_pos, INFO[3]
++				USER_DEFINED_HLBFGS_UPDATE_H(instance, N, M, q, s, y, cur_pos, INFO[3]
+ 				== 0 ? (&scale) : diag, INFO);
+ 				if (INFO[3] == 0)
+ 				{
+@@ -481,7 +483,7 @@
+ 					cg_dginit = -HLBFGS_DDOT(N, q, q);
+ 					if (M > 0 && INFO[2] > 0)
+ 					{
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i)
+ #endif
+ 						for (i = 0; i < N; i++)
+@@ -532,7 +534,7 @@
+ 			blinesearch = (info == -1);
+ 			if (blinesearch)
+ 			{
+-				EVALFUNC(N, x, prev_x, &f, g);
++				EVALFUNC(instance, N, x, prev_x, &f, g);
+ 				INFO[1]++;
+ 			}
+ 
+@@ -546,7 +548,7 @@
+ 
+ 		gnorm = HLBFGS_DNRM2(N, g);
+ 		INFO[2]++;
+-		NEWITERATION(INFO[2], INFO[1], x, &f, g, &gnorm);
++		NEWITERATION(instance, INFO[2], INFO[1], x, &f, g, &gnorm);
+ 		double xnorm = HLBFGS_DNRM2(N, x);
+ 		xnorm = 1 > xnorm ? 1 : xnorm;
+ 		rkeep[2] = gnorm;
+@@ -554,29 +556,37 @@
+ 
+ 		if (info != 1)
+ 		{
++            retval = 1;
+ 			HLBFGS_MESSAGE(INFO[5] != 0, 1, PARAMETERS);
+ 			break;
+ 		}
+ 		if (gnorm / xnorm <= PARAMETERS[5])
+ 		{
++            retval = 2;
+ 			HLBFGS_MESSAGE(INFO[5] != 0, 2, PARAMETERS);
+ 			break;
+ 		}
+ 		if (gnorm < PARAMETERS[6])
+ 		{
++            retval = 3;
+ 			HLBFGS_MESSAGE(INFO[5] != 0, 3, PARAMETERS);
+ 			break;
+ 		}
+ 		if (stp < stpmin || stp > stpmax)
+ 		{
++            retval = 4;
+ 			HLBFGS_MESSAGE(INFO[5] != 0, 4, PARAMETERS);
+ 			break;
+ 		}
+ 		if (INFO[2] > INFO[4])
+ 		{
++            retval = 5;
+ 			HLBFGS_MESSAGE(INFO[5] != 0, 5, PARAMETERS);
+ 			break;
+ 		}
+ 
+ 	} while (true);
++
++    return retval;
++    
+ }
+diff -x '.*' -Naru ../HLBFGS_ORG/HLBFGS.h ./HLBFGS.h
+--- ../HLBFGS_ORG/HLBFGS.h	2019-09-23 11:23:08.000000000 -0400
++++ ./HLBFGS.h	2019-09-23 11:23:13.000000000 -0400
+@@ -223,7 +223,7 @@
+ void HLBFGS_UPDATE_First_Step(int N, int M, double *q, double *s, double *y,
+ 							  double *rho, double *alpha, int bound, int cur_pos, int iter);
+ 
+-void HLBFGS_UPDATE_Hessian(int N, int M, double *q, double *s, double *y,
++void HLBFGS_UPDATE_Hessian(void * instance, int N, int M, double *q, double *s, double *y,
+ 						   int cur_pos, double *diag, int INFO[]);
+ 
+ void HLBFGS_UPDATE_Second_Step(int N, int M, double *q, double *s, double *y,
+@@ -235,11 +235,11 @@
+ void HLBFGS_BUILD_HESSIAN_INFO(HESSIAN_MATRIX& m_hessian, int INFO[]);
+ //////////////////////////////////////////////////////////////////////////
+ //! HLBFGS functions
+-void HLBFGS(int N, int M, double *x, void EVALFUNC(int, double*, double*,
+-			double*, double*), void EVALFUNC_H(int, double*, double*, double*,
+-			double*, HESSIAN_MATRIX&), void USER_DEFINED_HLBFGS_UPDATE_H(int, int,
+-			double*, double*, double*, int, double*, int[]), void NEWITERATION(int,
+-			int, double*, double*, double*, double*), double PARAMETERS[],
++int HLBFGS(int N, int M, double *x, void EVALFUNC(void *,int, double*, double*,
++			double*, double*), void EVALFUNC_H(void *,int, double*, double*, double*,
++			double*, HESSIAN_MATRIX&), void USER_DEFINED_HLBFGS_UPDATE_H(void *,int, int,
++			double*, double*, double*, int, double*, int[]), void NEWITERATION(void *,int,
++			int, double*, double*, double*, double*), void * instance, double PARAMETERS[],
+ 			int INFO[]);
+ //////////////////////////////////////////////////////////////////////////
+ 
+diff -x '.*' -Naru ../HLBFGS_ORG/HLBFGS_BLAS.cpp ./HLBFGS_BLAS.cpp
+--- ../HLBFGS_ORG/HLBFGS_BLAS.cpp	2019-09-23 11:23:08.000000000 -0400
++++ ./HLBFGS_BLAS.cpp	2019-09-23 11:23:13.000000000 -0400
+@@ -1,79 +1,106 @@
+-///////////////////////////////////////////////////////////////////////////////
+-//                                                                           //
+-// HLBFGS                                                                    //
+-// http://www.loria.fr/~liuyang/software/HLBFGS/							 //
+-//                                                                           //
+-// HLBFGS is a hybrid L-BFGS optimization framework which unifies L-BFGS     //
+-// method, Preconditioned L-BFGS method and                                  //
+-// Preconditioned Conjugate Gradient method.                                 //
+-//                                                                           //
+-// Version 1.2                                                               //
+-// March 09, 2010                                                            //
+-//                                                                           //
+-// Copyright (C) 2009--2010                                                  //
+-// Yang Liu                                                                  //
+-//																			 //
+-// xueyuhanlang@gmail.com                                                    //
+-//                                                                           //
+-// HLBFGS is HLBFGS is freely available for non-commercial purposes.		 //
+-//                                                                           //
+-///////////////////////////////////////////////////////////////////////////////
+-#ifdef USE_OPENMP
+-#include <omp.h>
+-#endif
+-
+-#include "HLBFGS_BLAS.h"
+-#include <cmath>
+-
+-double HLBFGS_DDOT(const int n, const double *x, const double *y)
+-{
+-	double result = 0;
+-	int i = 0;
+-#ifdef USE_OPENMP
+-#pragma omp parallel for private(i) reduction(+:result)
+-#endif
+-	for (i = 0; i < n; i++)
+-	{
+-		result += x[i] * y[i];
+-	}
+-	return result;
+-}
+-
+-void HLBFGS_DAXPY(const int n, const double alpha, const double *x, double *y)
+-{
+-	int i = 0;
+-#ifdef USE_OPENMP
+-#pragma omp parallel for private(i)
+-#endif
+-	for (i = 0; i < n; i++)
+-	{
+-		y[i] += alpha * x[i];
+-	}
+-}
+-
+-double HLBFGS_DNRM2(const int n, const double *x)
+-{
+-	double result = 0;
+-	int i = 0;
+-#ifdef USE_OPENMP
+-#pragma omp parallel for private(i) reduction(+:result)
+-#endif
+-	for (i = 0; i < n; i++)
+-	{
+-		result += x[i] * x[i];
+-	}
+-	return std::sqrt(result);
+-}
+-
+-void HLBFGS_DSCAL(const int n, const double a, double *x)
+-{
+-	int i = 0;
+-#ifdef USE_OPENMP
+-#pragma omp parallel for private(i)
+-#endif
+-	for (i = 0; i < n; i++)
+-	{
+-		x[i] *= a;
+-	}
+-}
+-
++///////////////////////////////////////////////////////////////////////////////
++//                                                                           //
++// HLBFGS                                                                    //
++// http://www.loria.fr/~liuyang/software/HLBFGS/							 //
++//                                                                           //
++// HLBFGS is a hybrid L-BFGS optimization framework which unifies L-BFGS     //
++// method, Preconditioned L-BFGS method and                                  //
++// Preconditioned Conjugate Gradient method.                                 //
++//                                                                           //
++// Version 1.2                                                               //
++// March 09, 2010                                                            //
++//                                                                           //
++// Copyright (C) 2009--2010                                                  //
++// Yang Liu                                                                  //
++//																			 //
++// xueyuhanlang@gmail.com                                                    //
++//                                                                           //
++// HLBFGS is HLBFGS is freely available for non-commercial purposes.		 //
++//                                                                           //
++///////////////////////////////////////////////////////////////////////////////
++#ifdef HLBFGS_EIGEN
++#include <Eigen/Dense>
++#else
++#ifdef HLBFGS_OPENMP
++#include <omp.h>
++#endif
++#endif
++
++#include "HLBFGS_BLAS.h"
++#include <cmath>
++
++double HLBFGS_DDOT(const int n, const double *x, const double *y)
++{
++#ifdef HBLFGS_EIGEN
++    Eigen::Map<const Eigen::VectorXd> xv(x, n);
++    Eigen::Map<const Eigen::VectorXd> yv(y, n);
++    const double result = xv.dot(yv);
++#else
++    double result = 0;
++    int i = 0;
++#ifdef HLBFGS_OPENMP
++#pragma omp parallel for private(i) reduction(+:result)
++#endif
++	for (i = 0; i < n; i++)
++	{
++		result += x[i] * y[i];
++	}
++#endif
++	return result;
++}
++
++void HLBFGS_DAXPY(const int n, const double alpha, const double *x, double *y)
++{
++#ifdef HBLFGS_EIGEN
++    Eigen::Map<const Eigen::VectorXd> xv(x, n);
++    Eigen::Map<Eigen::VectorXd> yv(y, n);
++    yv += alpha*xv;
++#else
++	int i = 0;
++#ifdef HLBFGS_OPENMP
++#pragma omp parallel for private(i)
++#endif
++	for (i = 0; i < n; i++)
++	{
++		y[i] += alpha * x[i];
++	}
++#endif
++}
++
++double HLBFGS_DNRM2(const int n, const double *x)
++{
++#ifdef HBLFGS_EIGEN
++    Eigen::Map<const Eigen::VectorXd> xv(x, n);
++    const double result = xv.norm();
++#else
++	double result = 0;
++	int i = 0;
++#ifdef HLBFGS_OPENMP
++#pragma omp parallel for private(i) reduction(+:result)
++#endif
++	for (i = 0; i < n; i++)
++	{
++		result += x[i] * x[i];
++	}
++	result = std::sqrt(result);
++#endif
++    return result;
++}
++
++void HLBFGS_DSCAL(const int n, const double a, double *x)
++{
++#ifdef HBLFGS_EIGEN
++    Eigen::Map<Eigen::VectorXd> xv(x, n);
++    xv *= a;
++#else
++	int i = 0;
++#ifdef HLBFGS_OPENMP
++#pragma omp parallel for private(i)
++#endif
++	for (i = 0; i < n; i++)
++	{
++		x[i] *= a;
++	}
++#endif
++}
++
+diff -x '.*' -Naru ../HLBFGS_ORG/ICFS.cpp ./ICFS.cpp
+--- ../HLBFGS_ORG/ICFS.cpp	2019-09-23 11:23:08.000000000 -0400
++++ ./ICFS.cpp	2019-09-23 11:23:13.000000000 -0400
+@@ -2,9 +2,9 @@
+ #include <cmath>
+ #include <algorithm>
+ 
+-#ifdef USE_OPENMP
+-#include <omp.h>
+-#endif
++//#ifdef HLBFGS_OPENMP
++//#include <omp.h>
++//#endif
+ 
+ #include "ICFS.h"
+ 
+@@ -157,7 +157,7 @@
+ 
+ 	/* Function Body */
+ 	i__1 = *n;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i__)
+ #endif
+ 	for (i__ = 1; i__ <= i__1; ++i__)
+@@ -179,7 +179,7 @@
+ 		}
+ 	}
+ 	i__1 = *n;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(j)
+ #endif
+ 	for (j = 1; j <= i__1; ++j)
+@@ -189,7 +189,7 @@
+ 	/*     Compute the scaling matrix D. */
+ 	i__1 = *n;
+ 	std::fill(&wa2[1], &wa2[i__1 + 1], 1.0);
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i__)
+ #endif
+ 	for (i__ = 1; i__ <= i__1; ++i__)
+@@ -241,7 +241,7 @@
+ 		std::copy(&arow_ind__[1], &arow_ind__[i__1 + 1], &lrow_ind__[1]);
+ 		/*        Scale A and store in the lower triangular matrix L. */
+ 		i__1 = *n;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(j)
+ #endif
+ 		for (j = 1; j <= i__1; ++j)
+@@ -250,12 +250,12 @@
+ 			ldiag[j] = adiag[j] * (wa2[j] * wa2[j]) + *alpha;
+ 		}
+ 		i__1 = *n;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(j)
+ #endif
+ 		for (j = 1; j <= i__1; ++j)
+ 		{
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i__)
+ #endif
+ 			for (i__ = acol_ptr__[j]; i__ <= acol_ptr__[j + 1] - 1; ++i__)
+@@ -281,7 +281,7 @@
+ 			else
+ 			{
+ 				i__1 = *n;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(i__)
+ #endif
+ 				for (i__ = 1; i__ <= i__1; ++i__)
+@@ -289,7 +289,7 @@
+ 					ldiag[i__] /= wa2[i__];
+ 				}
+ 				i__1 = lcol_ptr__[*n + 1] - 1;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(j)
+ #endif
+ 				for (j = 1; j <= i__1; ++j)
+@@ -434,7 +434,7 @@
+ 	/*     Make room for L by moving A to the last n*p positions in a. */
+ 	np = *n * *p;
+ 	i__1 = *n + 1;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(j)
+ #endif
+ 	for (j = 1; j <= i__1; ++j)
+@@ -511,7 +511,7 @@
+ 		}
+ 		/*        Compute the j-th column of L. */
+ 		i__2 = nlj;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(k)
+ #endif
+ 		for (k = 1; k <= i__2; ++k)
+@@ -546,7 +546,7 @@
+ 		newisj = col_ptr__[j];
+ 		newiej = newisj + mlj - 1;
+ 		i__2 = newiej;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(k)
+ #endif
+ 		for (k = newisj; k <= i__2; ++k)
+@@ -556,7 +556,7 @@
+ 		}
+ 		/*        Update the diagonal elements. */
+ 		i__2 = nlj;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(k)
+ #endif
+ 		for (k = kth; k <= i__2; ++k)
+@@ -573,7 +573,7 @@
+ 		}
+ 		/*        Clear out elements j+1,...,n of the array indf. */
+ 		i__2 = nlj;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(k)
+ #endif
+ 		for (k = 1; k <= i__2; ++k)
+@@ -595,7 +595,7 @@
+ 	//double d__1, d__2;
+ 
+ 	/* Local variables */
+-	static int i__, l, m, p, u, p1, p2, p3, lc, lp, swap;
++    static int i__, l, m, p, u, p1, p2, p3, lc, lp;//, swap;
+ 
+ 	/*     ********** */
+ 
+@@ -1005,7 +1005,7 @@
+ 		{
+ 			temp = r__[j] / ldiag[j];
+ 			i__2 = jptr[j + 1] - 1;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(k)
+ #endif
+ 			for (k = jptr[j]; k <= i__2; ++k)
+@@ -1024,7 +1024,7 @@
+ 		{
+ 			temp = 0.;
+ 			i__1 = jptr[j + 1] - 1;
+-#ifdef USE_OPENMP
++#ifdef HLBFGS_OPENMP
+ #pragma omp parallel for private(k) reduction(+:temp)
+ #endif
+ 			for (k = jptr[j]; k <= i__1; ++k)
+diff -x '.*' -Naru ../HLBFGS_ORG/LineSearch.cpp ./LineSearch.cpp
+--- ../HLBFGS_ORG/LineSearch.cpp	2019-09-23 11:23:08.000000000 -0400
++++ ./LineSearch.cpp	2019-09-23 11:23:13.000000000 -0400
+@@ -98,8 +98,8 @@
+ 	 }
+ 	 *stp = std::max<double>(*stp, *stpmin);
+ 	 *stp = std::min<double>(*stp, *stpmax);
+-	 if (brackt && (*stp <= stmin || *stp >= stmax) || *nfev >= *maxfev - 1
+-		 || infoc == 0 || brackt && stmax - stmin <= *xtol * stmax)
++	 if ( (brackt && (*stp <= stmin || *stp >= stmax)) || *nfev >= *maxfev - 1
++		 || infoc == 0 || (brackt && stmax - stmin <= *xtol * stmax))
+ 	 {
+ 		 *stp = stx;
+ 	 }
+@@ -111,7 +111,7 @@
+ 	 ++(*nfev);
+ 	 dg = HLBFGS_DDOT(*n, &g[1], &s[1]);
+ 	 ftest1 = finit + *stp * dgtest;
+-	 if (brackt && (*stp <= stmin || *stp >= stmax) || infoc == 0)
++	 if ((brackt && (*stp <= stmin || *stp >= stmax)) || infoc == 0)
+ 	 {
+ 		 *info = 6;
+ 	 }
+@@ -241,8 +241,8 @@
+ 	xsafe = .001;
+ #endif
+ 	*info = 0;
+-	if (*brackt && (*stp <= std::min<double>(*stx, *sty) || *stp >= std::max<
+-		double>(*stx, *sty)) || *dx * (*stp - *stx) >= 0. || *stpmax
++	if ((*brackt && (*stp <= std::min<double>(*stx, *sty) || *stp >= std::max<
++		double>(*stx, *sty))) || *dx * (*stp - *stx) >= 0. || *stpmax
+ 		< *stpmin)
+ 	{
+ 		return 0;
+diff -x '.*' -Naru ../HLBFGS_ORG/Lite_Sparse_Matrix.h ./Lite_Sparse_Matrix.h
+--- ../HLBFGS_ORG/Lite_Sparse_Matrix.h	2019-09-23 11:23:08.000000000 -0400
++++ ./Lite_Sparse_Matrix.h	2019-09-23 11:23:13.000000000 -0400
+@@ -71,15 +71,14 @@
+ 		ENABLE, DISABLE, LOCK
+ 	};
+ 
+-	STORE_STATE state_fill_entry;
+-	SYMMETRIC_STATE sym_state;
+-	SPARSE_STORAGE s_store;
+-	ARRAYTYPE arraytype;
+-
+-	int nrows; //!< number of rows
+-	int ncols; //!< number of columns
+-	int nonzero; //!< number of nonzeros
+-	//! pointers to where columns begin in rowind and values 0-based, length is (col+1)
++    int nrows; //!< number of rows
++    int ncols; //!< number of columns
++    
++    SYMMETRIC_STATE sym_state;
++    SPARSE_STORAGE s_store;
++    ARRAYTYPE arraytype;
++    
++    //! pointers to where columns begin in rowind and values 0-based, length is (col+1)
+ 	/*!
+ 	* When s_store is CRS, colptr stores column indices;
+ 	*/
+@@ -96,6 +95,8 @@
+ 	std::vector<double> diag; //! special usage for some libraries
+ 
+ 	bool save_diag_separetely;
++    int nonzero; //!< number of nonzeros
++    STORE_STATE state_fill_entry;
+ 
+ public:
+ 
