@@ -52,7 +52,7 @@ file(GLOB SOURCES_SIM "${SRC_DIR}/simulations/*.cpp")
 file(GLOB HEADERS_SIM "${SRC_DIR}/simulations/*.hpp")
 file(GLOB SOURCES_LIB "${SRC_DIR}/libshell/*.cpp")
 file(GLOB HEADERS_LIB "${SRC_DIR}/libshell/*.hpp")
-file(GLOB SOURCES_HLBFGS "${EXT_PROJECTS_DIR}/hlbfgs/*.cpp")
+file(GLOB SOURCES_HLBFGS "${EXT_PROJECTS_DIR}/HLBFGS/*.cpp")
 file(GLOB SOURCES_TEST ${TEST_SRC_DIR}/testshell/*.cpp)
 
 # compile main executable
