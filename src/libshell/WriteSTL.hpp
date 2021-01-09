@@ -47,7 +47,9 @@ public:
             myFace2Vertices(i,2) = face2vertices(i,2);
         }
         
-        igl::writeSTL(filename+".stl", myVertices, myFace2Vertices, myFaceNormals, ascii); // no ascii (last argument)
+        //igl::writeSTL(filename+".stl", myVertices, myFace2Vertices, myFaceNormals, ascii); // no ascii (last argument)
+        igl::FileEncoding encoding = (ascii ? igl::FileEncoding::Ascii : igl::FileEncoding::Binary);
+        igl::writeSTL(filename+".stl", myVertices, myFace2Vertices, myFaceNormals, encoding);
     }
 };
 #endif /* WriteSTL_h */

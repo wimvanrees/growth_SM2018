@@ -123,7 +123,8 @@ public:
             facenormals_STL(i,2) = 1.0;
         
         // write
-        igl::writeSTL(filename+".stl", vertices_STL, face2vertices_STL, facenormals_STL, false); // no ascii (last argument)
+        //igl::writeSTL(filename+".stl", vertices_STL, face2vertices_STL, facenormals_STL, false); // no ascii (last argument)
+        igl::writeSTL(filename+".stl", vertices_STL, face2vertices_STL, facenormals_STL, igl::FileEncoding::Binary); // no ascii (last argument)
     }
 };
 
