@@ -83,13 +83,13 @@ struct DCSBasicConfiguration
         setEdgeDirectors(topology, faceNormals, normal_function);
     }
     
-    void setEdgeDirectors(const TopologyData & topology, const Eigen::Ref<const Eigen::MatrixXd> normal_vectors)
+    void setEdgeDirectors_fromarray(const TopologyData & topology, const Eigen::Ref<const Eigen::MatrixXd> &normal_vectors)
     {
         const Eigen::MatrixXd faceNormals = computeFaceNormals(topology);
-        setEdgeDirectors(topology, faceNormals, normal_vectors);
+        setEdgeDirectors_fromarray(topology, faceNormals, normal_vectors);
     }
     
-    void setEdgeDirectors(const TopologyData & topology, const Eigen::Ref<const Eigen::MatrixXd> faceNormals, std::function<Eigen::Vector3d(const Eigen::Vector3d)> normal_function)
+    void setEdgeDirectors(const TopologyData & topology, const Eigen::Ref<const Eigen::MatrixXd> &faceNormals, std::function<Eigen::Vector3d(const Eigen::Vector3d)> normal_function)
     {
         const int nEdges = topology.getNumberOfEdges();
         Eigen::MatrixXd normal_vectors(nEdges,3);
@@ -107,10 +107,10 @@ struct DCSBasicConfiguration
                 normal_vectors(i,d) = midedge_normal(d);
         }
         
-        setEdgeDirectors(topology, faceNormals, normal_vectors);
+        setEdgeDirectors_fromarray(topology, faceNormals, normal_vectors);
     }
     
-    void setEdgeDirectors(const TopologyData & topology, const Eigen::Ref<const Eigen::MatrixXd> faceNormals, const Eigen::Ref<const Eigen::MatrixXd> normal_vectors)
+    void setEdgeDirectors_fromarray(const TopologyData & topology, const Eigen::Ref<const Eigen::MatrixXd> &faceNormals, const Eigen::Ref<const Eigen::MatrixXd> &normal_vectors)
     {
         const int Nedges = topology.getNumberOfEdges();
         

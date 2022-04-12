@@ -100,7 +100,7 @@ protected:
                     edgeNormals(i,d) = midedge_normal(d);
             }
             
-            mesh.getCurrentConfiguration().setEdgeDirectors(mesh.getTopology(), edgeNormals);
+            mesh.getCurrentConfiguration().setEdgeDirectors_fromarray(mesh.getTopology(), edgeNormals);
         }
 #endif
 
